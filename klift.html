@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K's Lift Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: system-ui, sans-serif; }
+    </style>
+</head>
+<body class="bg-zinc-950 text-white min-h-screen pb-8">
+    <div class="max-w-md mx-auto px-4 pt-8">
+        <h1 class="text-4xl font-bold text-center mb-1">💪 K's Lift</h1>
+        <p class="text-center text-zinc-400 text-sm mb-8">4-day tracker</p>
+
+        <!-- Header -->
+        <div id="header" class="text-center mb-6"></div>
+
+        <!-- Progress -->
+        <div id="progress-container" class="hidden mb-6">
+            <div class="w-full bg-zinc-800 h-2.5 rounded-2xl overflow-hidden">
+                <div id="progress-fill" class="h-full bg-emerald-500 transition-all duration-300" style="width:0%"></div>
+            </div>
+            <p id="progress-text" class="text-center text-xs text-zinc-400 mt-1 font-medium"></p>
+        </div>
+
+        <!-- Exercise list -->
+        <div id="exercise-list" class="space-y-4 hidden"></div>
+
+        <!-- Controls -->
+        <div id="controls" class="hidden mt-10 flex gap-3">
+            <button onclick="clearProgress()" 
+                    class="flex-1 py-4 bg-zinc-800 hover:bg-red-900/30 text-red-400 rounded-3xl font-medium active:scale-95 transition">
+                Clear Today
+            </button>
+            <button onclick="markAllDone()" 
+                    class="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 rounded-3xl font-medium active:scale-95 transition">
+                All Done ✅
+            </button>
+        </div>
+
+        <!-- Rest day -->
+        <div id="rest-message" class="hidden text-center py-16">
+            <div class="text-6xl mb-4">🌴</div>
+            <p class="text-2xl font-semibold text-amber-300">Rest day</p>
+            <p class="text-zinc-400 mt-2">No workout scheduled today.<br>Recover hard.</p>
+        </div>
+    </div>
+
+    <script>
+        const upperA = [  // Tuesday – Strength Bias
+            "Chest Press Machine – 3×8–12",
+            "Seated Row Machine – 3×8–12",
+            "Assisted Pull-Up or Lat Pulldown – 3×6–10",
+            "Shoulder Press Machine or Dumbbell Press – 3×8–12",
+            "Cable Tricep Pushdown or Skull Crushers – 2–3×10–12",
+            "Machine, Cable, or Dumbbell Curl – 2–3×10–12"
+        ];
+
+        const upperB = [  // Saturday – Hypertrophy / Pump
+            "Incline Chest Press – 3×10–15",
+            "Lat Pulldown (different grip than Tuesday) – 3×10–15",
+            "Pec Deck – 2–3×12–15",
+            "Face Pulls or Delt fly – 2–3×12–15",
+            "Lateral Raise – 3×12–15",
+            "Hammer Curl – 2×10–12"
+        ];
+
+        const lowerA = [  // Thursday – Strength Bias
+            "Leg Press – 4×8–12",
+            "Seated Hamstring Curl – 3×10–12",
+            "Leg Extension – 3×10–12",
+            "Standing or Seated Calf Raise – 3×15–20",
+            "Ab Machine or Cable Crunch – 3×12–15"
+        ];
+
+        const lowerB = [  // Sunday – Hypertrophy / Recovery-Friendly
+            "Hack Squat or Goblet Squat – 3×12–15",
+            "Hamstring Curl – 3×12–15",
+            "Walking Lunges (DBs optional) – 2–3×10–12 / leg",
+            "Glute Machine or Cable Kickback – 2×12–15",
+            "Calf Raise – 3×15–20",
+            "Plank or Core Machine – 2–3 sets"
+        ];
+
+        let currentExercises = [];
+        let completed = [];
+        let todayKey = "";
+
+        function getDayType() {
+            const day = new Date().getDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+            if (day === 2) return { type: "upper", variant: "A" };    // Tuesday → Upper A
+            if (day === 6) return { type: "upper", variant: "B" };    // Saturday → Upper B
+            if (day === 4) return { type: "lower", variant: "A" };    // Thursday → Lower A
+            if (day === 0) return { type: "lower", variant: "B" };    // Sunday → Lower B
+            return { type: "rest" };
+        }
+
+        function getTodayKey() {
+            const d = new Date();
+            return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+        }
+
+        function loadProgress() {
+            const saved = localStorage.getItem(todayKey);
+            completed = saved ? JSON.parse(saved) : [];
+        }
+
+        function saveProgress() {
+            localStorage.setItem(todayKey, JSON.stringify(completed));
+        }
+
+        function updateProgress() {
+            const done = completed.length;
+            const total = currentExercises.length;
+            const percent = total ? Math.round((done / total) * 100) : 0;
+            document.getElementById("progress-fill").style.width = percent + "%";
+            document.getElementById("progress-text").textContent = `${done}/${total} done`;
+        }
+
+        function renderList() {
+            const container = document.getElementById("exercise-list");
+            container.innerHTML = "";
+            currentExercises.forEach((ex, i) => {
+                const done = completed.includes(ex);
+                const div = document.createElement("div");
+                div.className = `flex items-center gap-4 bg-zinc-900 p-5 rounded-3xl ${done ? "opacity-75" : ""}`;
+                div.innerHTML = `
+                    <input type="checkbox" id="cb${i}" class="w-7 h-7 accent-emerald-500 rounded" ${done ? "checked" : ""} 
+                           onchange="toggle(${i})">
+                    <label for="cb${i}" class="flex-1 text-lg cursor-pointer leading-tight ${done ? 'line-through text-zinc-400' : ''}">
+                        ${ex}
+                    </label>
+                `;
+                container.appendChild(div);
+            });
+            updateProgress();
+        }
+
+        function toggle(i) {
+            const ex = currentExercises[i];
+            if (completed.includes(ex)) {
+                completed = completed.filter(x => x !== ex);
+            } else {
+                completed.push(ex);
+            }
+            saveProgress();
+            renderList();
+        }
+
+        function markAllDone() {
+            completed = [...currentExercises];
+            saveProgress();
+            renderList();
+        }
+
+        function clearProgress() {
+            if (confirm("Reset today's checks?")) {
+                completed = [];
+                saveProgress();
+                renderList();
+            }
+        }
+
+        function startWorkout() {
+            const { type, variant } = getDayType();
+            todayKey = getTodayKey();
+
+            if (type === "rest") {
+                document.getElementById("rest-message").classList.remove("hidden");
+                return;
+            }
+
+            let exercises, title;
+            if (type === "upper") {
+                exercises = variant === "A" ? upperA : upperB;
+                title = `Upper Body ${variant} (${variant === "A" ? "Strength" : "Hypertrophy / Pump"})`;
+            } else {
+                exercises = variant === "A" ? lowerA : lowerB;
+                title = `Lower Body ${variant} (${variant === "A" ? "Strength" : "Hypertrophy / Recovery"})`;
+            }
+
+            currentExercises = exercises;
+
+            const dayName = new Date().toLocaleDateString("en-US", { weekday: "long" });
+
+            document.getElementById("header").innerHTML = `
+                <p class="text-3xl font-bold">${dayName}</p>
+                <p class="text-emerald-400 text-2xl mt-1">${title}</p>
+            `;
+
+            document.getElementById("progress-container").classList.remove("hidden");
+            document.getElementById("exercise-list").classList.remove("hidden");
+            document.getElementById("controls").classList.remove("hidden");
+
+            loadProgress();
+            renderList();
+        }
+
+        // Start
+        window.onload = startWorkout;
+    </script>
+</body>
+</html>
